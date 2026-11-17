@@ -46,6 +46,12 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_oidc_subject_prefix" {
+  description = "Opcional. Prefijo del 'subject' inmutable de GitHub (repos nuevos): repo:OWNER@ID/REPO@ID. Ver: gh api repos/OWNER/REPO/actions/oidc/customization/sub"
+  type        = string
+  default     = ""
+}
+
 variable "create_oidc_provider" {
   description = "false si tu cuenta ya tiene un proveedor OIDC de GitHub (solo puede existir uno por cuenta)."
   type        = bool
@@ -125,7 +131,10 @@ data "aws_iam_policy_document" "github_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+      values = compact([
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        var.github_oidc_subject_prefix == "" ? "" : "${var.github_oidc_subject_prefix}:ref:refs/heads/main",
+      ])
     }
   }
 }
