@@ -50,6 +50,28 @@ test('POST /api/tasks rechaza un titulo vacio con 400', async () => {
   assert.equal(res.status, 400);
 });
 
+test('DELETE /api/tasks/:id borra la tarea con 204 y ya no aparece en la lista', async () => {
+  const created = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Tarea para borrar' }),
+  });
+  const task = await created.json();
+
+  const res = await fetch(`${base}/api/tasks/${task.id}`, { method: 'DELETE' });
+  assert.equal(res.status, 204);
+
+  const list = await (await fetch(`${base}/api/tasks`)).json();
+  assert.ok(!list.some((t) => t.id === task.id));
+});
+
+test('DELETE /api/tasks/:id responde 404 si la tarea no existe o el id no es numerico', async () => {
+  const missing = await fetch(`${base}/api/tasks/99999`, { method: 'DELETE' });
+  assert.equal(missing.status, 404);
+  const invalid = await fetch(`${base}/api/tasks/abc`, { method: 'DELETE' });
+  assert.equal(invalid.status, 404);
+});
+
 test('una ruta desconocida responde 404', async () => {
   const res = await fetch(`${base}/api/nada`);
   assert.equal(res.status, 404);

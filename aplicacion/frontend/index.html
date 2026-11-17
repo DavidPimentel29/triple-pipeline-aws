@@ -26,6 +26,9 @@
     input { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 1rem; }
     button { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 1rem; cursor: pointer; }
     .err { color: #c0392b; }
+    li { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    button.del { padding: 4px 10px; font-size: .85rem; background: transparent; color: #c0392b; border: 1px solid #c0392b; }
+    button.del:hover, button.del:focus-visible { background: #c0392b; color: #fff; }
   </style>
 </head>
 <body>
@@ -44,7 +47,7 @@
   </section>
 
   <section class="card">
-    <h1>Tareas (API: GET/POST /api/tasks)</h1>
+    <h1>Tareas (API: GET/POST/DELETE /api/tasks)</h1>
     <ul id="tasks"><li>cargando...</li></ul>
     <form id="form">
       <input id="title" maxlength="120" placeholder="Nueva tarea" required>
@@ -76,12 +79,30 @@
       const list = $('tasks');
       list.replaceChildren(...tasks.map((t) => {
         const li = document.createElement('li');
-        li.textContent = (t.done ? '[x] ' : '[ ] ') + t.title; // textContent: evita inyeccion de HTML (XSS)
+        const label = document.createElement('span');
+        label.textContent = (t.done ? '[x] ' : '[ ] ') + t.title; // textContent: evita inyeccion de HTML (XSS)
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'del';
+        del.textContent = 'Borrar';
+        del.setAttribute('aria-label', 'Borrar tarea: ' + t.title);
+        del.addEventListener('click', () => removeTask(t.id));
+        li.append(label, del);
         return li;
       }));
     } catch {
       $('error').textContent = 'No se pudo contactar al backend.';
     }
+  }
+
+  async function removeTask(id) {
+    $('error').textContent = '';
+    const res = await fetch('/api/tasks/' + id, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) {
+      $('error').textContent = 'No se pudo borrar la tarea.';
+      return;
+    }
+    loadTasks();
   }
 
   $('form').addEventListener('submit', async (e) => {

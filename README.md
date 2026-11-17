@@ -18,6 +18,7 @@ Este documento es la **guía única del equipo**: explica *qué* hace cada pieza
 9. [Problemas frecuentes](#9-problemas-frecuentes)
 10. [Preguntas probables de la sustentación](#10-preguntas-probables-de-la-sustentación)
 11. [Trazabilidad: requisito → archivo](#11-trazabilidad-requisito--archivo)
+12. [Evidencia de la demo](#12-evidencia-de-la-demo)
 
 ---
 
@@ -159,7 +160,7 @@ Terraform es dueño de la **infraestructura** (red, balanceador, cluster). El Pi
 Terraform guarda en un **state** qué creó. Si vive en tu laptop, el pipeline no lo ve. Por eso va a un **bucket S3** (versionado, cifrado, sin acceso público) con bloqueo nativo (`use_lockfile`) para evitar dos `apply` a la vez. El bucket y los roles no pueden crearse a sí mismos, así que los crea `bootstrap/` una vez, a mano.
 
 ### La aplicación (`aplicacion/`)
-- **Backend** (Node, sin dependencias): `GET /api/health`, `GET /api/info`, `GET|POST /api/tasks`. Maneja `SIGTERM` para cerrar con elegancia cuando ECS lo reemplaza. Corre como usuario no-root.
+- **Backend** (Node, sin dependencias): `GET /api/health`, `GET /api/info`, `GET|POST /api/tasks` y `DELETE /api/tasks/:id`. Maneja `SIGTERM` para cerrar con elegancia cuando ECS lo reemplaza. Corre como usuario no-root.
 - **Frontend** (HTML + nginx): muestra el SHA del frontend y el del backend, y el contenedor que respondió. Tras un despliegue se ve cambiar el SHA: es la **prueba visual** de que el pipeline funcionó.
 - Las tareas viven en memoria de cada contenedor (suficiente para la demo; una app real usaría RDS o DynamoDB).
 
@@ -218,7 +219,7 @@ Terraform guarda en un **state** qué creó. Si vive en tu laptop, el pipeline n
 
 ### Paso 0 — Probar la app en local (opcional, 2 min)
 ```bash
-cd aplicacion/backend && npm test          # 5 pruebas deben pasar
+cd aplicacion/backend && npm test          # 7 pruebas deben pasar
 ```
 
 ### Paso 1 — Crear el repositorio y subir el código **sin disparar los pipelines**
@@ -239,6 +240,14 @@ terraform init
 terraform apply -var="github_repo=<usuario>/<nombre-repo>"
 ```
 - Si falla porque tu cuenta **ya tiene** un proveedor OIDC de GitHub, añade `-var="create_oidc_provider=false"`.
+- **Repos nuevos de GitHub:** GitHub identifica los repos nuevos con IDs numéricos (*subject inmutable*), y el pipeline fallaría con `Not authorized to perform sts:AssumeRoleWithWebIdentity`. Obtén el prefijo y pásalo al bootstrap:
+  ```bash
+  gh api repos/<usuario>/<nombre-repo>/actions/oidc/customization/sub
+  terraform apply -var="github_repo=<usuario>/<nombre-repo>" \
+    -var="github_oidc_subject_prefix=<valor de sub_claim_prefix>"
+  ```
+  (Si `use_immutable_subject` sale `false`, no hace falta el segundo `-var`.)
+- Ejecútalo con un **usuario IAM administrador** (no con el usuario root) y comprueba antes con `aws sts get-caller-identity` que estás en *tu* cuenta. Una cuenta que pertenezca a una organización de AWS puede tener políticas (SCP) que prohíben crear buckets S3 u OIDC.
 - Guarda el archivo `terraform.tfstate` de esta carpeta (no se sube a Git). Quien ejecutó el bootstrap lo conserva.
 
 ### Paso 3 — Registrar las variables en GitHub
@@ -264,6 +273,14 @@ Termina con el *smoke test* y la URL. Ábrela en el navegador: verás el fronten
 ### Paso 7 — Probar el flujo completo (cambio → despliegue)
 Edita un texto en `aplicacion/frontend/index.html`, haz commit y push a `main`. Observa cómo se encadenan los Pipelines 2 y 3, y cómo cambia el SHA en la página.
 
+> **Probado por el equipo:** el push `2fb1c2b` ("feat: update frontend title") disparó solo el Pipeline 2 y luego el 3, y la app pasó a mostrar ese SHA en el frontend y el backend, sin intervención manual.
+
+### Paso 8 — Volver a levantar todo después de un `destroy`
+Si apagaste la infraestructura (sección 8) y quieres reactivar la app, no hace falta repetir el bootstrap ni las variables:
+1. Actions → *1 - Infraestructura (Terraform)* → Run workflow → acción **`apply`** (~5 min).
+2. Actions → *2 - Build y publicación en ECR* → Run workflow (los repos ECR nacen vacíos, hay que volver a publicar las imágenes).
+3. El Pipeline 3 se lanza solo al terminar el 2. La **URL del ALB cambia** en cada creación: cópiala del resumen del Pipeline 1.
+
 ---
 
 ## 7. Guion de la demo
@@ -285,6 +302,10 @@ Con 2 tareas Fargate pequeñas + ALB + 4 IPv4 públicas el costo aproximado es *
 
 **Apagar todo al terminar la demo:** Actions → *1 - Infraestructura (Terraform)* → Run workflow → acción **`destroy`**. Borra la app y la red (los repos ECR se eliminan con sus imágenes).
 
+**¿Qué es lo que cobra?** Principalmente el **ALB** (cobra por hora aunque nadie lo use) y las tareas **Fargate** y las IPv4 públicas. Poner los servicios en 0 tareas no basta: el ALB sigue facturando. La única forma de dejar de pagar es `destroy`.
+
+**¿Apagar hoy o después de la demo?** Dejarlo encendido dos días cuesta unos 3–4 USD. La alternativa es destruir al terminar de ensayar y volver a levantar todo el día de la demo con el **Paso 8** (≈ 15 minutos, todo automático). Si la demo es en vivo, esa reconstrucción incluso puede formar parte de ella.
+
 > `destroy` **no** borra lo creado por `bootstrap` (bucket del state, OIDC, roles): cuestan prácticamente nada. Para eliminarlos también, vacía el bucket (incluidas versiones) y ejecuta `terraform destroy` en `terraform/bootstrap`.
 
 Revisa **Billing → Bills** al día siguiente para confirmar que no quedó nada corriendo.
@@ -295,7 +316,9 @@ Revisa **Billing → Bills** al día siguiente para confirmar que no quedó nada
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | El repo o la rama no coinciden con la política de confianza | Revisa que `github_repo` del bootstrap sea exactamente `owner/repo` y que ejecutes desde `main`. |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | El repo o la rama no coinciden con la política de confianza, o el repo usa *subject inmutable* (repos nuevos) | Revisa que `github_repo` del bootstrap sea exactamente `owner/repo` y que ejecutes desde `main`. Si el repo es nuevo, repite el bootstrap con `-var="github_oidc_subject_prefix=..."` (Paso 2). |
+| Terraform: `InvalidClientTokenId` / `security token ... is invalid` | Credenciales de AWS viejas o borradas en `~/.aws/credentials` | Aparta ese archivo, `aws login` con tu usuario IAM y verifica con `aws sts get-caller-identity`. |
+| Bootstrap: `explicit deny in a service control policy` | Estás en una cuenta que pertenece a una organización con restricciones | Usa tu cuenta personal independiente; esas políticas no se pueden saltar desde la cuenta. |
 | Bootstrap: `EntityAlreadyExists` en el proveedor OIDC | Tu cuenta ya tiene el proveedor de GitHub | Reintenta con `-var="create_oidc_provider=false"`. |
 | Pipeline 1: `Error acquiring the state lock` | Otra ejecución en curso o una caída previa | Espera; si quedó huérfano, borra el objeto `.tflock` del bucket. |
 | Pipeline 2: `AccessDenied` al hacer push a ECR | Los repos aún no existen | Ejecuta antes el Pipeline 1. |
@@ -349,3 +372,29 @@ Revisa **Billing → Bills** al día siguiente para confirmar que no quedó nada
 | Sin secretos en el repositorio | OIDC (sección 4) y `.gitignore` | — |
 
 **Reparto sugerido para el equipo** (cada quien domina una parte y la explica en la demo): (A) Terraform y red/seguridad · (B) Pipeline 2, Docker y ECR · (C) Pipeline 3, ECS y la aplicación.
+
+---
+
+## 12. Evidencia de la demo
+
+El enunciado pide el enlace o la evidencia de la demo. Esto es lo que ya está verificado y lo que debe completar el equipo.
+
+**Repositorio:** https://github.com/DavidPimentel29/triple-pipeline-aws (privado: añadir al profesor como colaborador si lo pide).
+
+**Ejecuciones reales verificadas** (pestaña Actions del repositorio):
+
+| Pipeline | Disparo | Resultado | Commit (SHA) |
+|---|---|---|---|
+| 1 - Infraestructura (Terraform) | manual (`apply`) | correcto | `6b64d48` |
+| 2 - Build y publicación en ECR | manual | correcto | `6b64d48` |
+| 3 - Despliegue en ECS | automático tras el 2 | correcto | `6b64d48` |
+| 2 y 3 tras un cambio de código | `git push` (cambio de título del frontend) | correcto, encadenados solos | `2fb1c2b` |
+
+**Estado comprobado de la aplicación:** 2 servicios ECS con 1 tarea cada uno, destinos del ALB en estado `healthy`, `/api/info` respondiendo con el SHA desplegado y el frontend con HTTP 200. La URL del ALB solo funciona mientras la infraestructura esté encendida (cambia en cada creación; se ve en el resumen del Pipeline 1).
+
+**A completar por el equipo antes de entregar:**
+- [ ] Enlace a la grabación de la demo: _______________
+- [ ] Captura de la pestaña Actions con los 3 pipelines en verde.
+- [ ] Captura de ECR con las imágenes (tag = SHA) y de ECS con las tareas `RUNNING`.
+- [ ] Captura de la aplicación en el navegador mostrando el SHA.
+- [ ] Nombre de cada integrante y la parte que sustenta (ver reparto sugerido, sección 11).

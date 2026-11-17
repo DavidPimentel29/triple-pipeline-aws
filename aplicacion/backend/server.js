@@ -88,6 +88,17 @@ function createApp() {
         return send(res, 201, task);
       }
 
+      const taskRoute = pathname.match(/^\/api\/tasks\/(\d+)$/);
+      if (req.method === 'DELETE' && taskRoute) {
+        const index = tasks.findIndex((t) => t.id === Number(taskRoute[1]));
+        if (index === -1) {
+          return send(res, 404, { error: 'Tarea no encontrada' });
+        }
+        tasks.splice(index, 1);
+        res.writeHead(204);
+        return res.end();
+      }
+
       return send(res, 404, { error: 'No encontrado' });
     } catch (err) {
       return send(res, err.status || 500, { error: err.message || 'Error interno' });
