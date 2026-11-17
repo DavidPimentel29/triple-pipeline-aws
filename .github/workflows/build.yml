@@ -1,0 +1,53 @@
+name: "2 - Build y publicacion en ECR"
+
+# Se ejecuta al cambiar el codigo de la app, o a mano desde la pestana Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "aplicacion/**"
+      - "pipelines/scripts/build-push.sh"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  PROJECT_NAME: triple-pipeline # debe coincidir con los otros workflows y con Terraform
+  IMAGE_TAG: ${{ github.sha }} # el tag de la imagen ES el commit: trazabilidad total
+
+jobs:
+  test:
+    name: Pruebas del backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests (node --test)
+        working-directory: aplicacion/backend
+        run: npm test
+
+  build:
+    name: Build y push (${{ matrix.service }})
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciales AWS por OIDC (rol de app, minimo privilegio)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.APP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Construir y publicar
+        run: bash pipelines/scripts/build-push.sh ${{ matrix.service }}

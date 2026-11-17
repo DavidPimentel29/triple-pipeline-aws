@@ -1,0 +1,12 @@
+# Copia este archivo a terraform.tfvars para ejecutar Terraform a mano.
+# (terraform.tfvars esta en .gitignore; este .example SI se versiona.)
+# En el pipeline NO hace falta: region y nombre llegan como variables de entorno.
+
+region       = "us-east-1"
+project_name = "triple-pipeline"
+
+# Opcionales (valores por defecto entre parentesis):
+# task_cpu              = 256   # 0.25 vCPU
+# task_memory           = 512   # MiB
+# initial_desired_count = 0
+# log_retention_days    = 7

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 510" width="940" height="510" font-family="Helvetica, Arial, sans-serif" role="img" aria-label="Arquitectura del proyecto en AWS">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5A626E"/>
+    </marker>
+  </defs>
+  <rect width="940" height="510" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="20" font-weight="bold" fill="#1B1F24">Arquitectura del proyecto en AWS</text>
+
+  <!-- VPC -->
+  <rect x="200" y="60" width="500" height="430" fill="#F7F8FA" stroke="#D5DAE1"/>
+  <text x="212" y="80" font-size="14" font-weight="bold" fill="#1B1F24">VPC 10.0.0.0/16 · 2 zonas de disponibilidad</text>
+  <!-- ECS -->
+  <rect x="220" y="210" width="460" height="260" fill="#FFFFFF" stroke="#D5DAE1"/>
+  <text x="232" y="230" font-size="14" font-weight="bold" fill="#1B1F24">ECS Fargate</text>
+
+  <!-- Aristas -->
+  <g fill="none" stroke="#5A626E" stroke-width="1.5" marker-end="url(#arr)">
+    <path d="M150,260 H245 V140 H340"/>
+    <path d="M400,170 V220 H340 V270"/>
+    <path d="M500,170 V220 H560 V270"/>
+    <path d="M825,130 V240"/>
+    <path d="M750,280 H715 V340 H680" stroke-dasharray="6 4"/>
+    <path d="M680,420 H715 V440 H750" stroke-dasharray="6 4"/>
+  </g>
+  <g font-size="12" fill="#5A626E">
+    <text x="165" y="252">HTTP 80</text>
+    <text x="345" y="212">/</text>
+    <text x="566" y="212">/api/*</text>
+    <text x="833" y="190">push</text>
+    <text x="722" y="272">pull</text>
+    <text x="722" y="412">logs</text>
+  </g>
+
+  <!-- Usuario -->
+  <rect x="30" y="230" width="120" height="60" rx="8" fill="#F2F4F7" stroke="#B8C0CC"/>
+  <text x="90" y="256" font-size="14" text-anchor="middle" fill="#1B1F24">Usuario</text>
+  <text x="90" y="274" font-size="11" text-anchor="middle" fill="#1B1F24">navegador</text>
+
+  <!-- ALB -->
+  <rect x="340" y="110" width="220" height="60" rx="8" fill="#EEF4FF" stroke="#9DB8F2"/>
+  <text x="450" y="136" font-size="14" text-anchor="middle" fill="#1B1F24">Application Load Balancer</text>
+  <text x="450" y="154" font-size="11" text-anchor="middle" fill="#1B1F24">puerto 80 · reparte por ruta</text>
+
+  <!-- Frontend / Backend -->
+  <rect x="250" y="270" width="180" height="70" rx="8" fill="#EEF4FF" stroke="#9DB8F2"/>
+  <text x="340" y="299" font-size="14" text-anchor="middle" fill="#1B1F24">Frontend (nginx)</text>
+  <text x="340" y="318" font-size="11" text-anchor="middle" fill="#1B1F24">:80 · ruta /</text>
+  <rect x="470" y="270" width="180" height="70" rx="8" fill="#EEF4FF" stroke="#9DB8F2"/>
+  <text x="560" y="299" font-size="14" text-anchor="middle" fill="#1B1F24">Backend (Node)</text>
+  <text x="560" y="318" font-size="11" text-anchor="middle" fill="#1B1F24">:3000 · ruta /api/*</text>
+
+  <!-- Nota -->
+  <rect x="250" y="380" width="400" height="50" rx="8" fill="#FFF9DB" stroke="#E9D58A"/>
+  <text x="450" y="402" font-size="12" text-anchor="middle" fill="#1B1F24">Security Group: solo acepta tráfico del ALB</text>
+  <text x="450" y="420" font-size="12" text-anchor="middle" fill="#1B1F24">0.25 vCPU · 512 MiB por tarea · IP pública (sin NAT)</text>
+
+  <!-- GitHub Actions -->
+  <rect x="750" y="60" width="150" height="70" rx="8" fill="#F2F4F7" stroke="#B8C0CC"/>
+  <text x="825" y="90" font-size="14" text-anchor="middle" fill="#1B1F24">GitHub Actions</text>
+  <text x="825" y="109" font-size="11" text-anchor="middle" fill="#1B1F24">3 pipelines · OIDC</text>
+
+  <!-- ECR -->
+  <path d="M750,250 a75,10 0 0,1 150,0 v60 a75,10 0 0,1 -150,0 z" fill="#F3EEFF" stroke="#B9A6F0"/>
+  <path d="M750,250 a75,10 0 0,0 150,0" fill="none" stroke="#B9A6F0"/>
+  <text x="825" y="283" font-size="14" text-anchor="middle" fill="#1B1F24">Amazon ECR</text>
+  <text x="825" y="301" font-size="11" text-anchor="middle" fill="#1B1F24">imágenes · tag = SHA</text>
+
+  <!-- CloudWatch -->
+  <path d="M750,410 a75,10 0 0,1 150,0 v60 a75,10 0 0,1 -150,0 z" fill="#F3EEFF" stroke="#B9A6F0"/>
+  <path d="M750,410 a75,10 0 0,0 150,0" fill="none" stroke="#B9A6F0"/>
+  <text x="825" y="443" font-size="14" text-anchor="middle" fill="#1B1F24">CloudWatch Logs</text>
+  <text x="825" y="461" font-size="11" text-anchor="middle" fill="#1B1F24">7 días</text>
+</svg>

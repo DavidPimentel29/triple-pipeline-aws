@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Triple Pipeline en AWS</title>
+  <style>
+    :root { --fg:#1b2a3a; --muted:#5b6b7b; --bg:#f4f7fa; --card:#fff; --accent:#0b6e4f; --line:#dbe3ea; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg:#e6edf3; --muted:#9aa7b4; --bg:#0f1720; --card:#17212c; --accent:#3ecf8e; --line:#2a3846; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; color:var(--fg); background:var(--bg); }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { margin: 0 0 10px; font-size: 1rem; }
+    dl { display: grid; grid-template-columns: 9rem 1fr; gap: 6px 12px; margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; word-break: break-all; font-family: ui-monospace, monospace; }
+    ul { list-style: none; padding: 0; margin: 0 0 12px; }
+    li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    li:last-child { border-bottom: 0; }
+    form { display: flex; gap: 8px; }
+    input { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 1rem; }
+    button { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 1rem; cursor: pointer; }
+    .err { color: #c0392b; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Triple Pipeline en AWS</h1>
+  <p class="sub">Frontend en nginx y backend en Node, ambos en ECS Fargate detras de un ALB.</p>
+
+  <section class="card">
+    <h2>Estado del despliegue</h2>
+    <dl>
+      <dt>Frontend (SHA)</dt><dd id="fe-version">__GIT_SHA__</dd>
+      <dt>Backend (SHA)</dt><dd id="be-version">cargando...</dd>
+      <dt>Contenedor backend</dt><dd id="be-host">cargando...</dd>
+      <dt>Entorno</dt><dd id="be-env">cargando...</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Tareas (API: GET/POST /api/tasks)</h2>
+    <ul id="tasks"><li>cargando...</li></ul>
+    <form id="form">
+      <input id="title" maxlength="120" placeholder="Nueva tarea" required>
+      <button type="submit">Agregar</button>
+    </form>
+    <p id="error" class="err" role="alert"></p>
+  </section>
+</main>
+
+<script>
+  // Rutas RELATIVAS: el ALB envia /api/* al backend y el resto al frontend,
+  // asi que el navegador usa un unico origen (sin CORS).
+  const $ = (id) => document.getElementById(id);
+
+  async function loadInfo() {
+    try {
+      const info = await (await fetch('/api/info')).json();
+      $('be-version').textContent = info.version;
+      $('be-host').textContent = info.hostname;
+      $('be-env').textContent = info.env;
+    } catch {
+      $('be-version').textContent = 'backend no disponible';
+    }
+  }
+
+  async function loadTasks() {
+    try {
+      const tasks = await (await fetch('/api/tasks')).json();
+      const list = $('tasks');
+      list.replaceChildren(...tasks.map((t) => {
+        const li = document.createElement('li');
+        li.textContent = (t.done ? '[x] ' : '[ ] ') + t.title; // textContent: evita inyeccion de HTML (XSS)
+        return li;
+      }));
+    } catch {
+      $('error').textContent = 'No se pudo contactar al backend.';
+    }
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('error').textContent = '';
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: $('title').value }),
+    });
+    if (!res.ok) {
+      $('error').textContent = (await res.json()).error || 'Error';
+      return;
+    }
+    $('title').value = '';
+    loadTasks();
+  });
+
+  loadInfo();
+  loadTasks();
+</script>
+</body>
+</html>

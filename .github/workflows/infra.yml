@@ -1,0 +1,86 @@
+name: "1 - Infraestructura (Terraform)"
+
+# Se ejecuta al cambiar terraform/ en main, o a mano desde la pestana Actions
+# eligiendo plan / apply / destroy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Accion de Terraform"
+        type: choice
+        options: [plan, apply, destroy]
+        default: apply
+
+# id-token: write permite pedir el token OIDC con el que GitHub se identifica
+# ante AWS (cero claves de acceso guardadas).
+permissions:
+  id-token: write
+  contents: read
+
+# Una sola ejecucion de Terraform a la vez (el state no admite concurrencia).
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+env:
+  TF_VAR_region: ${{ vars.AWS_REGION }}
+  TF_VAR_project_name: triple-pipeline # debe coincidir con PROJECT_NAME de los otros workflows
+  ACTION: ${{ github.event.inputs.action || 'apply' }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciales AWS por OIDC (rol de Terraform)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Formato (terraform fmt)
+        run: terraform fmt -check -recursive
+
+      - name: Init (state remoto en S3)
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}"
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan / Apply / Destroy
+        run: |
+          case "$ACTION" in
+            plan)
+              terraform plan -input=false ;;
+            apply)
+              terraform plan -input=false -out=tfplan
+              terraform apply -input=false tfplan ;;
+            destroy)
+              terraform destroy -input=false -auto-approve ;;
+          esac
+
+      - name: Resumen (URL de la app)
+        if: env.ACTION == 'apply'
+        run: |
+          {
+            echo "### Infraestructura aplicada"
+            echo '```'
+            terraform output
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

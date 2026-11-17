@@ -1,0 +1,48 @@
+name: "3 - Despliegue en ECS"
+
+# Se dispara solo cuando el Pipeline 2 termina; tambien se puede lanzar a mano
+# indicando el SHA de cualquier imagen ya publicada (eso sirve de ROLLBACK).
+on:
+  workflow_run:
+    workflows: ["2 - Build y publicacion en ECR"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "SHA (tag de la imagen) a desplegar. Vacio = ultimo commit de main"
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  PROJECT_NAME: triple-pipeline # debe coincidir con los otros workflows y con Terraform
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  deploy:
+    # Solo despliega si el build termino bien (o si se lanzo a mano).
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Credenciales AWS por OIDC (rol de app, minimo privilegio)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.APP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Actualizar servicios de ECS
+        run: bash pipelines/scripts/deploy.sh
+
+      - name: Prueba de humo (smoke test)
+        run: bash pipelines/scripts/smoke-test.sh

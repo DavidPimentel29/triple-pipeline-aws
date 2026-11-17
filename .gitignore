@@ -1,0 +1,26 @@
+# Terraform: el state y los planes pueden contener datos sensibles. NUNCA al repo.
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+crash.log
+terraform.tfvars
+*.auto.tfvars
+# (el archivo .terraform.lock.hcl SI se versiona: fija las versiones de los providers)
+
+# Node
+node_modules/
+
+# Secretos y credenciales
+.env
+.env.*
+*.pem
+*.key
+.aws/
+credentials
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
