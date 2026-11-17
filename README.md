@@ -285,14 +285,36 @@ Si apagaste la infraestructura (sección 8) y quieres reactivar la app, no hace 
 
 ## 7. Guion de la demo
 
-1. **Estructura (1 min)**: carpetas `terraform/`, `aplicacion/`, `pipelines/`, y este README.
-2. **Pipeline 1 (2 min)**: mostrar la ejecución de Terraform y, en la consola de AWS, VPC, ALB, cluster ECS y repos ECR creados.
-3. **Pipeline 2 (2 min)**: lanzar o mostrar una ejecución; abrir ECR y señalar el tag = SHA.
-4. **Pipeline 3 (3 min)**: mostrar el despliegue; ECS → servicio → *Deployments* y *Tasks* en estado `RUNNING`.
-5. **Aplicación (1 min)**: abrir la URL del ALB; añadir una tarea; señalar el SHA y el contenedor que respondió.
-6. **Cambio en vivo (3 min)**: modificar un texto, push, ver el encadenamiento y el nuevo SHA.
-7. **Decisiones (2 min)**: OIDC en vez de claves, dos roles, tags inmutables, sin NAT por costo, `ignore_changes`, rollback.
-8. **Cierre**: ejecutar `destroy` (sección 8) o dejar claro que se hará.
+**Estrategia:** la infraestructura ya está levantada antes de empezar (el Pipeline 1 tarda ~5 min y no aporta mostrarlo esperando). En vivo se hace lo que sí impresiona: **cambiar el código y ver cómo se actualiza todo solo**. Duración total: **~20 minutos**.
+
+### Antes de la demo (1 hora antes)
+- [ ] Levantar todo con el **Paso 8** y esperar a que los 3 pipelines estén en verde.
+- [ ] Abrir la URL de la app y comprobar que carga y muestra los SHA.
+- [ ] Dejar abiertas estas pestañas, en este orden: **(1)** GitHub → Actions, **(2)** GitHub → el repo (código), **(3)** la app, **(4)** consola de AWS en **us-east-1** (ECR, ECS, EC2 → Load Balancers, VPC), **(5)** este README (diagrama de la sección 2).
+- [ ] Tener decidido el cambio en vivo: abrir `aplicacion/frontend/index.html` en GitHub, pulsar el lápiz (editar) y ubicar el texto del título.
+- [ ] **Plan B:** si algo falla en vivo, mostrar las ejecuciones verdes anteriores y las capturas de la sección 12.
+
+### Guion minuto a minuto
+
+| Min | Quién | Qué hacer (pantalla) | Qué decir |
+|---|---|---|---|
+| 0–2 | Compañero 3 (demo) | Mostrar el diagrama de la sección 2 del README. | "Es una aplicación con frontend y backend que se despliega en AWS de forma 100 % automática con tres pipelines: uno crea la infraestructura, otro construye las imágenes y otro las despliega." |
+| 2–5 | Tú (pipelines) | Pestaña Actions → abrir la ejecución **verde** del Pipeline 1 y desplegar sus pasos. Luego la consola de AWS: **VPC** (subredes), **EC2 → Load Balancers** (pestaña Listeners: regla `/api/*`), **ECS** (clúster y 2 servicios), **ECR**. | "Terraform describe la infraestructura como código. El pipeline hace `fmt`, `validate`, `plan` y `apply`. Esto es lo que creó: red en dos zonas, un balanceador que reparte por ruta, ECS Fargate y repositorios de imágenes." |
+| 5–7 | Tú | GitHub → Settings → Secrets and variables → Actions: mostrar que **no hay secretos**, solo variables (ARNs). Opcional: AWS → IAM → Roles → `triple-pipeline-github-app` → *Trust relationships*. | "No guardamos ninguna clave de AWS. GitHub se identifica con OIDC y AWS entrega credenciales temporales, y solo a este repositorio y a la rama `main`. Usamos dos roles: uno amplio para Terraform y otro mínimo para construir y desplegar." |
+| 7–9 | Compañeros 1 y 2 | Abrir la **app**. Señalar los SHA y el contenedor que respondió. Agregar una tarea y borrar otra. | Backend: "La API tiene `GET` y `POST` y `DELETE` en `/api/tasks`, más `/api/health`, que usa el balanceador para saber si el contenedor está sano." Frontend: "La página llama a rutas relativas `/api/...`; el balanceador decide si va al frontend o al backend, por eso no hay CORS." |
+| 9–16 | Compañero 3 conduce, tú explicas | **Cambio en vivo:** en la pestaña del código, editar el título de `index.html` → *Commit directly to main*. Ir a **Actions** y seguir: Pipeline 2 (pruebas → build de backend y frontend en paralelo) → **ECR** (imagen nueva, tag = SHA) → Pipeline 3 → **ECS → servicio → Deployments** (versión vieja y nueva conviviendo) → *smoke test* → recargar la app: el título y el **SHA** cambiaron. | Mientras espera (~6–7 min): "El tag de la imagen es el commit, así sabemos exactamente qué código corre y podemos volver atrás. ECS arranca la tarea nueva, el balanceador la comprueba y solo entonces retira la vieja; si fallara, el *circuit breaker* revierte solo." |
+| 16–18 | Tú | Explicar (sin ejecutar) el **rollback**: Actions → Pipeline 3 → *Run workflow* → pegar el SHA de una versión anterior. | "Si una versión sale mala, se vuelve a desplegar un SHA anterior en minutos. Esos SHA están guardados como tags en ECR." |
+| 18–20 | Todos | Volver al diagrama. | "Decisiones: sin NAT para ahorrar ~33 USD/mes, tags inmutables, `ignore_changes` para que Terraform maneje la infraestructura y el pipeline la versión. Todo encendido cuesta unos 0,07 USD/hora, y al terminar lo apagamos con `destroy`." |
+
+### Al terminar
+- Lanzar el `destroy` (Actions → *1 - Infraestructura* → Run workflow → `destroy`) y verificar que los recursos desaparecieron (sección 8).
+
+### Si algo falla durante la demo
+| Problema | Qué hacer |
+|---|---|
+| Un pipeline tarda o falla en vivo | No improvisar: pasar al **Plan B** (ejecución verde anterior) y explicar el paso que falló mirando sus logs. |
+| La app da 503 al principio | Es normal 1–2 minutos tras desplegar; seguir explicando y recargar. |
+| Se acaba el tiempo | Omitir el rollback (min 16–18); la explicación del cambio en vivo es lo esencial. |
 
 ---
 
