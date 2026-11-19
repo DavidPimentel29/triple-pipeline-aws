@@ -16,17 +16,17 @@
 
   <!-- Aristas -->
   <g fill="none" stroke="#5A626E" stroke-width="1.5" marker-end="url(#arr)">
-    <path d="M150,260 H245 V140 H340"/>
-    <path d="M400,170 V220 H340 V270"/>
-    <path d="M500,170 V220 H560 V270"/>
+    <path d="M150,260 H210 V140 H340"/>
+    <path d="M400,170 V192 H340 V270"/>
+    <path d="M500,170 V192 H560 V270"/>
     <path d="M825,130 V240"/>
     <path d="M750,280 H715 V340 H680" stroke-dasharray="6 4"/>
     <path d="M680,420 H715 V440 H750" stroke-dasharray="6 4"/>
   </g>
   <g font-size="12" fill="#5A626E">
-    <text x="165" y="252">HTTP 80</text>
-    <text x="345" y="212">/</text>
-    <text x="566" y="212">/api/*</text>
+    <text x="156" y="252">HTTP 80</text>
+    <text x="368" y="187">/</text>
+    <text x="512" y="187">/api/*</text>
     <text x="833" y="190">push</text>
     <text x="722" y="272">pull</text>
     <text x="722" y="412">logs</text>
